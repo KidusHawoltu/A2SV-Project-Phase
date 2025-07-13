@@ -23,9 +23,9 @@ func WordFrequencyCount(str string) map[string]int {
 func IsPalindrome(str string) bool {
 	i, j := 0, len(str)-1
 	for i < j {
-		for ; i < j && !((65 <= str[i] && str[i] <= 90) || (97 <= str[i] && str[i] <= 122) || (48 <= str[i] && str[i] <= 58)); i++ {
+		for ; i < j && !((65 <= str[i] && str[i] <= 90) || (97 <= str[i] && str[i] <= 122) || (48 <= str[i] && str[i] < 58)); i++ {
 		}
-		for ; j > i && !((65 <= str[j] && str[j] <= 90) || (97 <= str[j] && str[j] <= 122) || (48 <= str[j] && str[j] <= 58)); j-- {
+		for ; j > i && !((65 <= str[j] && str[j] <= 90) || (97 <= str[j] && str[j] <= 122) || (48 <= str[j] && str[j] < 58)); j-- {
 		}
 		if !strings.EqualFold(str[i:i+1], str[j:j+1]) {
 			return false
