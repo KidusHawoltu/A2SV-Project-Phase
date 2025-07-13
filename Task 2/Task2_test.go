@@ -113,3 +113,91 @@ func TestWordFrequencyCount(t *testing.T) {
 		})
 	}
 }
+
+func TestIsPalindrome(t *testing.T) {
+	testCases := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{
+			name:  "Simple Palindrome - Odd Length",
+			input: "racecar",
+			want:  true,
+		},
+		{
+			name:  "Simple Palindrome - Even Length",
+			input: "noon",
+			want:  true,
+		},
+		{
+			name:  "Case-Insensitive Palindrome",
+			input: "RaceCar",
+			want:  true,
+		},
+		{
+			name:  "Palindrome with Punctuation and Spaces",
+			input: "A man, a plan, a canal: Panama",
+			want:  true,
+		},
+		{
+			name:  "Palindrome with Numbers",
+			input: "12321",
+			want:  true,
+		},
+		{
+			name:  "Mixed Alphanumeric Palindrome",
+			input: "Was it a car or a cat I saw?",
+			want:  true,
+		},
+		{
+			name:  "Simple Non-Palindrome",
+			input: "hello",
+			want:  false,
+		},
+		{
+			name:  "Almost a Palindrome",
+			input: "racecars",
+			want:  false,
+		},
+		{
+			name:  "Empty String",
+			input: "",
+			want:  true,
+		},
+		{
+			name:  "Single Alphanumeric Character",
+			input: "a",
+			want:  true,
+		},
+		{
+			name:  "Single Non-Alphanumeric Character",
+			input: "!",
+			want:  true,
+		},
+		{
+			name:  "String with Only Delimiters",
+			input: ".,;! ",
+			want:  true,
+		},
+		{
+			name:  "Known Limitation: Non-ASCII characters are skipped",
+			input: "madamé",
+			want:  true,
+		},
+		{
+			name:  "Known Limitation: Unicode palindrome fails",
+			input: "上海海上",
+			want:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := IsPalindrome(tc.input)
+			if got != tc.want {
+				t.Errorf("IsPalindrome(%q) = %v; want %v", tc.input, got, tc.want)
+			}
+		})
+	}
+}
