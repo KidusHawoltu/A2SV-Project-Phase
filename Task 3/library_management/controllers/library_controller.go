@@ -7,8 +7,6 @@ import (
 	"strconv"
 )
 
-var library *services.Library
-
 func getInput(prompt string) string {
 	fmt.Print(prompt)
 	var str string
@@ -53,8 +51,7 @@ func printMenu() {
 	fmt.Println("Enter any other integer to exit the program")
 }
 
-func Operate() {
-	library = services.GetLibrary()
+func Handler(libraryManager services.LibraryManager) {
 	stop := false
 
 	fmt.Println("Welcome to Console based Library Management")
@@ -65,23 +62,23 @@ func Operate() {
 		case 0:
 			printMenu()
 		case 1:
-			AddMember()
+			AddMember(libraryManager)
 		case 2:
-			RemoveMember()
+			RemoveMember(libraryManager)
 		case 3:
-			AddBook()
+			AddBook(libraryManager)
 		case 4:
-			RemoveBook()
+			RemoveBook(libraryManager)
 		case 5:
-			BorrowBook()
+			BorrowBook(libraryManager)
 		case 6:
-			ReturnBook()
+			ReturnBook(libraryManager)
 		case 7:
-			ListAllMembers()
+			ListAllMembers(libraryManager)
 		case 8:
-			ListAvailableBooks()
+			ListAvailableBooks(libraryManager)
 		case 9:
-			ListBorrowedBooks()
+			ListBorrowedBooks(libraryManager)
 		default:
 			stop = true
 		}
@@ -90,43 +87,43 @@ func Operate() {
 	fmt.Println("Good Bye")
 }
 
-func AddMember() {
+func AddMember(libraryManager services.LibraryManager) {
 	name := getInput("Enter the name of the new Member: ")
-	library.AddMember(models.Member{
+	libraryManager.AddMember(models.Member{
 		Name: name,
 	})
 }
 
-func RemoveMember() {
+func RemoveMember(libraryManager services.LibraryManager) {
 	memberId := getIntInput("Enter the id of the member you want to remove from the Library: ")
-	library.RemoveMember(memberId)
+	libraryManager.RemoveMember(memberId)
 }
 
-func AddBook() {
+func AddBook(libraryManager services.LibraryManager) {
 	title, author := getInput("Enter the title of the Book: "), getInput("Enter the name of the Author: ")
-	library.AddBook(models.Book{
+	libraryManager.AddBook(models.Book{
 		Title:  title,
 		Author: author,
 	})
 }
 
-func RemoveBook() {
+func RemoveBook(libraryManager services.LibraryManager) {
 	bookId := getIntInput("Enter the Id of the book you want to delete\n(Enter -1 to see list of available books): ")
 	for bookId < 0 {
-		ListAvailableBooks()
+		ListAvailableBooks(libraryManager)
 		bookId = getIntInput("Enter the Id of the book you want to delete\n(Enter -1 to see list of available books): ")
 	}
-	library.RemoveBook(bookId)
+	libraryManager.RemoveBook(bookId)
 }
 
-func BorrowBook() {
+func BorrowBook(libraryManager services.LibraryManager) {
 	memberId := getIntInput("Enter your Id: ")
 	bookId := getIntInput("Enter the Id of the book you want to borrow\n(Enter -1 to see list of available books): ")
 	for bookId < 0 {
-		ListAvailableBooks()
+		ListAvailableBooks(libraryManager)
 		bookId = getIntInput("Enter the Id of the book you want to borrow\n(Enter -1 to see list of available books): ")
 	}
-	err := library.BorrowBook(bookId, memberId)
+	err := libraryManager.BorrowBook(bookId, memberId)
 	if err == nil {
 		fmt.Println("Successfully Borrowed the Book")
 	} else {
@@ -134,14 +131,14 @@ func BorrowBook() {
 	}
 }
 
-func ReturnBook() {
+func ReturnBook(libraryManager services.LibraryManager) {
 	memberId := getIntInput("Enter your Id: ")
 	bookId := getIntInput("Enter the Id of the book you want to return\n(Enter -1 to see list of your Borrowed Books): ")
 	for bookId < 0 {
-		listBorrowedBooks(memberId)
+		listBorrowedBooks(libraryManager, memberId)
 		bookId = getIntInput("Enter the Id of the book you want to return\n(Enter -1 to see list of your Borrowed Books): ")
 	}
-	err := library.ReturnBook(bookId, memberId)
+	err := libraryManager.ReturnBook(bookId, memberId)
 	if err == nil {
 		fmt.Println("Successfully Returned the Book")
 	} else {
@@ -149,8 +146,8 @@ func ReturnBook() {
 	}
 }
 
-func ListAllMembers() {
-	members := library.ListAllMembers()
+func ListAllMembers(libraryManager services.LibraryManager) {
+	members := libraryManager.ListAllMembers()
 	if len(members) == 0 {
 		fmt.Println("There are no members in this library")
 		return
@@ -172,8 +169,8 @@ func ListAllMembers() {
 	}
 }
 
-func ListAvailableBooks() {
-	books := library.ListAvailableBooks()
+func ListAvailableBooks(libraryManager services.LibraryManager) {
+	books := libraryManager.ListAvailableBooks()
 	if len(books) == 0 {
 		fmt.Println("There are no available books")
 		return
@@ -184,13 +181,13 @@ func ListAvailableBooks() {
 	}
 }
 
-func ListBorrowedBooks() {
+func ListBorrowedBooks(libraryManager services.LibraryManager) {
 	memberId := getIntInput("Enter your Id: ")
-	listBorrowedBooks(memberId)
+	listBorrowedBooks(libraryManager, memberId)
 }
 
-func listBorrowedBooks(memberId int) {
-	books := library.ListBorrowedBooks(memberId)
+func listBorrowedBooks(libraryManager services.LibraryManager, memberId int) {
+	books := libraryManager.ListBorrowedBooks(memberId)
 	if len(books) == 0 {
 		fmt.Println("This member hasn't borrowed any books")
 		return

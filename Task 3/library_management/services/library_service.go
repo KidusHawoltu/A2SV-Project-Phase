@@ -5,7 +5,7 @@ import (
 	"library_management/models"
 )
 
-func GetLibrary() *Library {
+func NewLibrary() *Library {
 	return &Library{
 		Books:        make(map[int]models.Book),
 		nextBookId:   0,
@@ -62,6 +62,7 @@ func (library *Library) RemoveBook(bookId int) {
 	book, exists := library.Books[bookId]
 	if exists && book.Status == models.Borrowed {
 		fmt.Printf("Book with id %v is already borrowed\n", bookId)
+		return
 	}
 	delete(library.Books, bookId)
 }
