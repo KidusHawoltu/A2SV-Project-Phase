@@ -7,17 +7,17 @@ import (
 
 func NewLibrary() *Library {
 	return &Library{
-		Books:        make(map[int]models.Book),
+		Books:        make(map[int]*models.Book),
 		nextBookId:   0,
-		Members:      make(map[int]models.Member),
+		Members:      make(map[int]*models.Member),
 		nextMemberId: 0,
 	}
 }
 
 type Library struct {
-	Books        map[int]models.Book
+	Books        map[int]*models.Book
 	nextBookId   int
-	Members      map[int]models.Member
+	Members      map[int]*models.Member
 	nextMemberId int
 }
 
@@ -34,27 +34,28 @@ type LibraryManager interface {
 }
 
 func (library *Library) AddMember(member models.Member) {
-	member.Id = library.nextMemberId
-	library.Members[library.nextMemberId] = member
+	newMember := member
+	newMember.Id = library.nextMemberId
+	library.Members[library.nextMemberId] = &newMember
 	library.nextMemberId++
 }
 
 func (library *Library) RemoveMember(memberId int) {
-	member := library.Members[memberId]
-	for _, borrowBook := range member.BorrowedBooks {
-		book, e := library.Books[borrowBook.Id]
-		if e {
-			book.Status = models.Available
-			library.Books[book.Id] = book
-		}
+	member, memberExists := library.Members[memberId]
+	if !memberExists {
+		return
+	}
+	for _, borrowedBook := range member.BorrowedBooks {
+		borrowedBook.Status = models.Available
 	}
 	delete(library.Members, memberId)
 }
 
 func (library *Library) AddBook(book models.Book) {
-	book.Id = library.nextBookId
-	book.Status = models.Available
-	library.Books[library.nextBookId] = book
+	newBook := book
+	newBook.Id = library.nextBookId
+	newBook.Status = models.Available
+	library.Books[library.nextBookId] = &newBook
 	library.nextBookId++
 }
 
@@ -80,9 +81,7 @@ func (library *Library) BorrowBook(bookId int, memberId int) error {
 		return fmt.Errorf("book with id %v is already Borrowed", bookId)
 	}
 	book.Status = models.Borrowed
-	library.Books[book.Id] = book
 	member.BorrowedBooks = append(member.BorrowedBooks, book)
-	library.Members[memberId] = member
 	return nil
 }
 
@@ -101,9 +100,7 @@ func (library *Library) ReturnBook(bookId int, memberId int) error {
 	for i, borrwoedBook := range member.BorrowedBooks {
 		if borrwoedBook.Id == bookId {
 			member.BorrowedBooks = append(member.BorrowedBooks[:i], member.BorrowedBooks[i+1:]...)
-			library.Members[memberId] = member
 			book.Status = models.Available
-			library.Books[bookId] = book
 			return nil
 		}
 	}
@@ -113,7 +110,7 @@ func (library *Library) ReturnBook(bookId int, memberId int) error {
 func (library *Library) ListAllMembers() []models.Member {
 	var members []models.Member
 	for _, m := range library.Members {
-		members = append(members, m)
+		members = append(members, *m)
 	}
 	return members
 }
@@ -122,7 +119,7 @@ func (library *Library) ListAvailableBooks() []models.Book {
 	availableBooks := []models.Book{}
 	for _, book := range library.Books {
 		if book.Status == models.Available {
-			availableBooks = append(availableBooks, book)
+			availableBooks = append(availableBooks, *book)
 		}
 	}
 	return availableBooks
@@ -130,8 +127,12 @@ func (library *Library) ListAvailableBooks() []models.Book {
 
 func (library *Library) ListBorrowedBooks(memberId int) []models.Book {
 	member, memberExists := library.Members[memberId]
+	borrwoedBooks := []models.Book{}
 	if !memberExists {
-		return []models.Book{}
+		return borrwoedBooks
 	}
-	return member.BorrowedBooks
+	for _, borrwoedBook := range member.BorrowedBooks {
+		borrwoedBooks = append(borrwoedBooks, *borrwoedBook)
+	}
+	return borrwoedBooks
 }

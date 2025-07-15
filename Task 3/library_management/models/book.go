@@ -16,6 +16,6 @@ type Book struct {
 	Status BookStatus
 }
 
-func (book Book) String() string {
+func (book *Book) String() string {
 	return fmt.Sprintf("Id: %v, %q by %q (%s)", book.Id, book.Title, book.Author, book.Status)
 }

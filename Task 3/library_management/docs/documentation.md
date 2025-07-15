@@ -60,14 +60,14 @@ library_management/
 
 *   **`Book`**: Represents a book with an `Id`, `Title`, `Author`, and a `Status`.
 *   **`BookStatus`**: A custom type (`Available` or `Borrowed`) to ensure type safety for book statuses.
-*   **`Member`**: Represents a library member with an `Id`, `Name`, and a slice of `BorrowedBooks`.
+*   **`Member`**: Represents a library member with an `Id`, `Name`, and a slice of pointers to `BorrowedBooks` (`[]*Book`) to efficiently track borrowed items.
 
 ### Services
 
 *   **`LibraryManager` Interface**: This interface defines the contract for all library operations. By having the controller depend on this interface instead of the concrete `Library` struct, we achieve loose coupling.
-*   **`Library` Struct**: The concrete implementation of `LibraryManager`. It holds maps for all `Books` and `Members` in the system.
+*   **`Library` Struct**: The concrete implementation of `LibraryManager`. It holds maps of pointers to `Books` and `Members` (`map[int]*models.Book`, `map[int]*models.Member`) for efficient state management.
 *   **Auto-Incrementing IDs**: The `Library` service automatically assigns a unique, sequential ID to each new book and member, simplifying the user's interaction with the system.
-*   **State Management**: The system currently uses value types (`map[int]models.Book`). State changes are managed by retrieving a copy of a struct, modifying it, and explicitly writing the entire copy back into the map. This approach is verified for correctness by the test suite.
+*   **State Management (Pointer-Based)**: The system has been refactored to use pointers for state management, which is a common and efficient idiom in Go. Instead of storing copies of `Book` and `Member` structs, the library's maps hold pointers to these structs. This means that when an object's field (like a book's status) is modified, the change is reflected immediately across the entire system without needing to write the object back into the map. This approach is memory-efficient and eliminates a class of bugs related to stale data. To ensure pointer stability, new books and members are explicitly copied to a new variable before their address is taken and stored, following Go best practices.
 
 ## 5. How to Run the Application
 
