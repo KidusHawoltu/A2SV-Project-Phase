@@ -127,7 +127,7 @@ func BorrowBook(libraryManager services.LibraryManager) {
 	if err == nil {
 		fmt.Println("Successfully Borrowed the Book")
 	} else {
-		fmt.Println("Error borrowing book")
+		fmt.Printf("Error: %v\n", err)
 	}
 }
 
@@ -142,7 +142,7 @@ func ReturnBook(libraryManager services.LibraryManager) {
 	if err == nil {
 		fmt.Println("Successfully Returned the Book")
 	} else {
-		fmt.Println("Error returning the book")
+		fmt.Printf("Error: %v\n", err)
 	}
 }
 
