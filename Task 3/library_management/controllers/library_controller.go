@@ -57,7 +57,7 @@ func Handler(libraryManager services.LibraryManager) {
 	fmt.Println("Welcome to Console based Library Management")
 	printMenu()
 	for !stop {
-		menu := getIntInput("Your Input: ")
+		menu := getIntInput("\nYour Input: ")
 		switch menu {
 		case 0:
 			printMenu()
@@ -152,6 +152,7 @@ func ListAllMembers(libraryManager services.LibraryManager) {
 		fmt.Println("There are no members in this library")
 		return
 	}
+	fmt.Println("All memebers of the Library")
 	fmt.Printf("%-5v%-15s Borrowed Books\n", "Id", "Name")
 	for _, m := range members {
 		fmt.Printf("%-5v%-15s ", m.Id, m.Name)
@@ -175,6 +176,7 @@ func ListAvailableBooks(libraryManager services.LibraryManager) {
 		fmt.Println("There are no available books")
 		return
 	}
+	fmt.Println("All available books in the Library")
 	fmt.Printf("%-5v%-30s%-20s\n", "Id", "Title", "Author")
 	for _, book := range books {
 		fmt.Printf("%-5v%-30s%-20s\n", book.Id, book.Title, book.Author)
@@ -192,6 +194,7 @@ func listBorrowedBooks(libraryManager services.LibraryManager, memberId int) {
 		fmt.Println("This member hasn't borrowed any books")
 		return
 	}
+	fmt.Printf("All books borrowed by member with id %v\n", memberId)
 	fmt.Printf("%-5v%-30s%-20s\n", "Id", "Title", "Author")
 	for _, book := range books {
 		fmt.Printf("%-5v%-30s%-20s\n", book.Id, book.Title, book.Author)
