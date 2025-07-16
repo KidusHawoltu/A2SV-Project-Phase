@@ -1,16 +1,107 @@
-# Task Manager API Documentation
+# Task Manager API
 
-This document provides details for the Task Manager REST API.
-
-**Base URL**: `http://localhost:8080`
+A simple RESTful API for managing tasks, built with Go and the Gin framework. This project provides a complete, thread-safe, and well-structured backend service for basic CRUD operations.
 
 ---
 
-## Task Model
+## Table of Contents
+
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Running the Application](#running-the-application)
+  - [Running Tests](#running-tests)
+- [API Endpoint Reference](#api-endpoint-reference)
+  - [Task Model](#task-model)
+  - [Endpoints](#endpoints)
+
+---
+
+## Getting Started
+
+Follow these instructions to get a copy of the project up and running on your local machine for development and testing purposes.
+
+### Prerequisites
+
+You will need the following software installed on your system:
+- **Go**: Version 1.20 or later is recommended.
+- **Postman or curl**: For testing the API endpoints manually.
+
+### Installation
+
+1.  **Navigate to the project directory:**
+    ```bash
+    cd task_manager
+    ```
+
+2.  **Install dependencies:**
+    Go modules will handle the installation of required packages (like Gin and Testify) automatically. Run the following command to ensure all dependencies are downloaded and the `go.sum` file is correct.
+    ```bash
+    go mod tidy
+    ```
+
+### Running the Application
+
+To start the API server, run the following command from the root of the project directory (`task_manager/`):
+
+```bash
+go run main.go
+```
+
+If successful, you will see output from the Gin framework indicating that the server is running. By default, it listens on port **8080**.
+
+```
+[GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
+
+[GIN-debug] Listening and serving HTTP on :8080
+```
+
+The API is now live and ready to accept requests at `http://localhost:8080`.
+
+### Running Tests
+
+This project includes a comprehensive test suite for the data service layer. To run all tests:
+
+1.  Navigate to the project root directory.
+2.  Run the standard Go test command. It is recommended to use the `-v` flag for verbose output and `-count=1` to disable the test cache for a fresh run.
+
+    ```bash
+    go test -v -count=1 ./...
+    ```
+
+    - **`-v`**: Enables verbose mode, which lists each test as it runs.
+    - **`-count=1`**: Disables the test cache, forcing the tests to re-run.
+    - **`./...`**: Tells Go to run tests in the current directory and all sub-directories.
+
+A successful test run will produce output similar to this:
+
+```
+=== RUN   TestAddTask
+--- PASS: TestAddTask (0.00s)
+=== RUN   TestGetTasks
+--- PASS: TestGetTasks (0.00s)
+=== RUN   TestGetTaskById
+=== RUN   TestGetTaskById/should_find_an_existing_task
+--- PASS: TestGetTaskById/should_find_an_existing_task (0.00s)
+=== RUN   TestGetTaskById/should_return_an_error_for_a_non-existent_task
+--- PASS: TestGetTaskById/should_return_an_error_for_a_non-existent_task (0.00s)
+--- PASS: TestGetTaskById (0.00s)
+... (more tests) ...
+PASS
+ok      A2SV_ProjectPhase/Task4/TaskManager/data    0.015s
+```
+
+---
+
+## API Endpoint Reference
+
+This section provides the detailed API contract.
+
+**Base URL**: `http://localhost:8080`
+
+### Task Model
 
 This is the core data object used in the API for requests and responses.
-
-### Properties
 
 | Field         | Type      | Description                                                                    | Required on Create/Update |
 |---------------|-----------|--------------------------------------------------------------------------------|---------------------------|
@@ -20,16 +111,14 @@ This is the core data object used in the API for requests and responses.
 | `duedate`     | string    | The due date in RFC3339 format (e.g., `"2024-12-15T17:00:00Z"`).                 | **Yes**                   |
 | `status`      | string    | The current status of the task. Must be one of the allowed values listed below. | **Yes**                   |
 
-### Allowed Status Values
+#### Allowed Status Values
 *   `"Pending"`
 *   `"In progress"`
 *   `"Done"`
 
----
+### Endpoints
 
-## Endpoints
-
-### 1. Create a New Task
+#### 1. Create a New Task
 
 Creates a new task.
 
@@ -65,7 +154,7 @@ Creates a new task.
     }
     ```
 
-### 2. Get All Tasks
+#### 2. Get All Tasks
 
 Retrieves a list of all tasks. The order of tasks in the returned array is not guaranteed.
 
@@ -85,7 +174,7 @@ Retrieves a list of all tasks. The order of tasks in the returned array is not g
     ]
     ```
 
-### 3. Get a Specific Task
+#### 3. Get a Specific Task
 
 Retrieves a single task by its unique ID.
 
@@ -116,7 +205,7 @@ Retrieves a single task by its unique ID.
     }
     ```
 
-### 4. Update a Task
+#### 4. Update a Task
 
 Updates an existing task by its ID.
 
@@ -147,7 +236,7 @@ Updates an existing task by its ID.
   - **`400 Bad Request`**: The provided `id` is invalid, the request body is malformed, or the status is invalid.
   - **`404 Not Found`**: No task exists with the specified `id`.
 
-### 5. Delete a Task
+#### 5. Delete a Task
 
 Deletes a task by its ID.
 
