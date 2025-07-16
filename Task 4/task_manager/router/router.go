@@ -8,10 +8,11 @@ import (
 
 func NewRouter(taskController *controllers.TaskController) *gin.Engine {
 	router := gin.Default()
-	router.GET("/tasks", taskController.GetTasks)
-	router.GET("/tasks/:id", taskController.GetTaskById)
-	router.PUT("/tasks/:id", taskController.UpdateTask)
-	router.DELETE("/tasks/:id", taskController.DeleteTask)
-	router.POST("/tasks", taskController.AddTask)
+	tasks := router.Group("/tasks")
+	tasks.GET("", taskController.GetTasks)
+	tasks.GET("/:id", taskController.GetTaskById)
+	tasks.PUT("/:id", taskController.UpdateTask)
+	tasks.DELETE("/:id", taskController.DeleteTask)
+	tasks.POST("", taskController.AddTask)
 	return router
 }

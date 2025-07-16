@@ -14,24 +14,24 @@ type TaskController struct {
 	taskManager data.TaskManager
 }
 
-func NewController(manager data.TaskManager) *TaskController {
+func NewTaskController(tm data.TaskManager) *TaskController {
 	return &TaskController{
-		taskManager: manager,
+		taskManager: tm,
 	}
 }
 
-func (taskController *TaskController) GetTasks(c *gin.Context) {
-	tasks := taskController.taskManager.GetTasks()
+func (tc *TaskController) GetTasks(c *gin.Context) {
+	tasks := tc.taskManager.GetTasks()
 	c.JSON(http.StatusOK, tasks)
 }
 
-func (taskController *TaskController) GetTaskById(c *gin.Context) {
+func (tc *TaskController) GetTaskById(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Id", "Error": err.Error()})
 		return
 	}
-	task, err := taskController.taskManager.GetTaskById(id)
+	task, err := tc.taskManager.GetTaskById(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"Error": err.Error()})
 		return
@@ -39,7 +39,7 @@ func (taskController *TaskController) GetTaskById(c *gin.Context) {
 	c.JSON(http.StatusOK, task)
 }
 
-func (taskController *TaskController) UpdateTask(c *gin.Context) {
+func (tc *TaskController) UpdateTask(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Id", "Error": err.Error()})
@@ -54,7 +54,7 @@ func (taskController *TaskController) UpdateTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("There is no status called '%v'", updatedTask.Status)})
 		return
 	}
-	task, err := taskController.taskManager.UpdateTask(id, updatedTask)
+	task, err := tc.taskManager.UpdateTask(id, updatedTask)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"Error": err.Error()})
 		return
@@ -62,21 +62,21 @@ func (taskController *TaskController) UpdateTask(c *gin.Context) {
 	c.JSON(http.StatusOK, task)
 }
 
-func (taskController *TaskController) DeleteTask(c *gin.Context) {
+func (tc *TaskController) DeleteTask(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Id", "Error": err.Error()})
 		return
 	}
 
-	if err := taskController.taskManager.DeleteTask(id); err != nil {
+	if err := tc.taskManager.DeleteTask(id); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"Error": err.Error()})
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
-func (taskController *TaskController) AddTask(c *gin.Context) {
+func (tc *TaskController) AddTask(c *gin.Context) {
 	var task models.Task
 	if err := c.BindJSON(&task); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Task Body", "Error": err.Error()})
@@ -86,6 +86,6 @@ func (taskController *TaskController) AddTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("There is no status called '%v'", task.Status)})
 		return
 	}
-	newTask := taskController.taskManager.AddTask(task)
+	newTask := tc.taskManager.AddTask(task)
 	c.JSON(http.StatusCreated, newTask)
 }
