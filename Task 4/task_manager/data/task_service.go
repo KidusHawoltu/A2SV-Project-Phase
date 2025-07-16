@@ -3,11 +3,14 @@ package data
 import (
 	"A2SV_ProjectPhase/Task4/TaskManager/models"
 	"fmt"
+	"sync"
 )
 
 type TaskList struct {
 	Tasks  map[int]*models.Task
 	nextId int
+	// Used RWMutex so that readers doesn't lock eachother
+	mu sync.RWMutex
 }
 
 type TaskManager interface {
@@ -22,27 +25,37 @@ func NewTaskManager() TaskManager {
 	return &TaskList{
 		Tasks:  make(map[int]*models.Task),
 		nextId: 1,
+		// no need to initialize mu
 	}
 }
 
-func (taskList *TaskList) GetTasks() []*models.Task {
-	tasks := make([]*models.Task, 0, len(taskList.Tasks))
-	for _, task := range taskList.Tasks {
+func (tl *TaskList) GetTasks() []*models.Task {
+	tl.mu.RLock()
+	defer tl.mu.RUnlock()
+
+	tasks := make([]*models.Task, 0, len(tl.Tasks))
+	for _, task := range tl.Tasks {
 		tasks = append(tasks, task)
 	}
 	return tasks
 }
 
-func (taskList *TaskList) GetTaskById(id int) (*models.Task, error) {
-	task, exists := taskList.Tasks[id]
+func (tl *TaskList) GetTaskById(id int) (*models.Task, error) {
+	tl.mu.RLock()
+	defer tl.mu.RUnlock()
+
+	task, exists := tl.Tasks[id]
 	if !exists {
 		return nil, fmt.Errorf("there is no task with id %v", id)
 	}
 	return task, nil
 }
 
-func (taskList *TaskList) UpdateTask(id int, updatedTask models.Task) (*models.Task, error) {
-	task, exists := taskList.Tasks[id]
+func (tl *TaskList) UpdateTask(id int, updatedTask models.Task) (*models.Task, error) {
+	tl.mu.Lock()
+	defer tl.mu.Unlock()
+
+	task, exists := tl.Tasks[id]
 	if !exists {
 		return nil, fmt.Errorf("there is no task with id %v", id)
 	}
@@ -53,18 +66,24 @@ func (taskList *TaskList) UpdateTask(id int, updatedTask models.Task) (*models.T
 	return task, nil
 }
 
-func (taskList *TaskList) DeleteTask(id int) error {
-	if _, exists := taskList.Tasks[id]; !exists {
+func (tl *TaskList) DeleteTask(id int) error {
+	tl.mu.Lock()
+	defer tl.mu.Unlock()
+
+	if _, exists := tl.Tasks[id]; !exists {
 		return fmt.Errorf("there is no task with id %v", id)
 	}
-	delete(taskList.Tasks, id)
+	delete(tl.Tasks, id)
 	return nil
 }
 
-func (taskList *TaskList) AddTask(task models.Task) *models.Task {
+func (tl *TaskList) AddTask(task models.Task) *models.Task {
+	tl.mu.Lock()
+	defer tl.mu.Unlock()
+
 	newTask := task
-	newTask.Id = taskList.nextId
-	taskList.Tasks[taskList.nextId] = &newTask
-	taskList.nextId++
+	newTask.Id = tl.nextId
+	tl.Tasks[tl.nextId] = &newTask
+	tl.nextId++
 	return &newTask
 }
