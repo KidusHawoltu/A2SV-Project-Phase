@@ -8,7 +8,7 @@ import (
 
 func main() {
 	manager := data.NewTaskManager()
-	controllers.Initialize(manager)
-	router := router.NewRouter()
+	controller := controllers.NewController(manager)
+	router := router.NewRouter(controller)
 	router.Run(":8080")
 }
