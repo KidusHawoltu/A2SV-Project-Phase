@@ -5,9 +5,10 @@ import (
 	"A2SV_ProjectPhase/Task5/TaskManager/models"
 	"fmt"
 	"net/http"
-	"strconv"
+	"strings" // For checking error messages
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type TaskController struct {
@@ -21,56 +22,86 @@ func NewTaskController(tm data.TaskManager) *TaskController {
 }
 
 func (tc *TaskController) GetTasks(c *gin.Context) {
-	tasks := tc.taskManager.GetTasks()
+	// Pass context from Gin to the manager
+	tasks, err := tc.taskManager.GetTasks(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Failed to retrieve tasks"})
+		return
+	}
 	c.JSON(http.StatusOK, tasks)
 }
 
 func (tc *TaskController) GetTaskById(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	idHex := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idHex)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Id", "Error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid Task ID format", "error": err.Error()})
 		return
 	}
-	task, err := tc.taskManager.GetTaskById(id)
+
+	// Pass context from Gin to the manager
+	task, err := tc.taskManager.GetTaskById(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"Error": err.Error()})
+		// Check for specific "not found" error message from the data layer
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Task with ID '%s' not found", idHex), "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Failed to retrieve task"})
 		return
 	}
 	c.JSON(http.StatusOK, task)
 }
 
 func (tc *TaskController) UpdateTask(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	idHex := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idHex)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Id", "Error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid Task ID format", "error": err.Error()})
 		return
 	}
+
 	var updatedTask models.Task
 	if err := c.BindJSON(&updatedTask); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Task Body", "Error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request body", "error": err.Error()})
 		return
 	}
+
 	if !updatedTask.Status.IsValid() {
-		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("There is no status called '%v'", updatedTask.Status)})
+		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("Invalid status provided: '%v'", updatedTask.Status)})
 		return
 	}
-	task, err := tc.taskManager.UpdateTask(id, updatedTask)
+
+	// Pass context from Gin to the manager
+	task, err := tc.taskManager.UpdateTask(c.Request.Context(), id, updatedTask)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"Error": err.Error()})
+		// Check for specific "not found" error message from the data layer
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Task with ID '%s' not found", idHex), "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Failed to update task"})
 		return
 	}
 	c.JSON(http.StatusOK, task)
 }
 
 func (tc *TaskController) DeleteTask(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	idHex := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idHex)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Id", "Error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid Task ID format", "error": err.Error()})
 		return
 	}
 
-	if err := tc.taskManager.DeleteTask(id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"Error": err.Error()})
+	// Pass context from Gin to the manager
+	if err := tc.taskManager.DeleteTask(c.Request.Context(), id); err != nil {
+		// Check for specific "not found" error message from the data layer
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Task with ID '%s' not found", idHex), "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Failed to delete task"})
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -79,13 +110,19 @@ func (tc *TaskController) DeleteTask(c *gin.Context) {
 func (tc *TaskController) AddTask(c *gin.Context) {
 	var task models.Task
 	if err := c.BindJSON(&task); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Incorrect Task Body", "Error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request body", "error": err.Error()})
 		return
 	}
 	if !task.Status.IsValid() {
-		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("There is no status called '%v'", task.Status)})
+		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("Invalid status provided: '%v'", task.Status)})
 		return
 	}
-	newTask := tc.taskManager.AddTask(task)
+
+	// Pass context from Gin to the manager
+	newTask, err := tc.taskManager.AddTask(c.Request.Context(), task)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Failed to create task"})
+		return
+	}
 	c.JSON(http.StatusCreated, newTask)
 }
