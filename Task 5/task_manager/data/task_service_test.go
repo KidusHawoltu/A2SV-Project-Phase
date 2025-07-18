@@ -23,7 +23,7 @@ var (
 	testCollection *mongo.Collection
 	testManager    TaskManager
 	databaseName   = "test_learning_phase" // Use a separate DB for testing!
-	collectionName = "test_tasks"          // Use a separate collection for testing!
+	collectionName = "test_task5"          // Use a separate collection for testing!
 )
 
 // TestMain runs before all tests in the package.

@@ -63,7 +63,7 @@ func main() {
 
 	// Get a handle to the database and collection
 	databaseName := "learning_phase" // Can be configured
-	collectionName := "tasks"        // Can be configured
+	collectionName := "task5"        // Can be configured
 	taskCollection := client.Database(databaseName).Collection(collectionName)
 
 	manager := data.NewTaskManager(taskCollection)
