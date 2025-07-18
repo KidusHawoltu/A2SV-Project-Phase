@@ -3,8 +3,11 @@ package main
 import (
 	"A2SV_ProjectPhase/Task6/TaskManager/controllers"
 	"A2SV_ProjectPhase/Task6/TaskManager/data"
+	"A2SV_ProjectPhase/Task6/TaskManager/models"
 	"A2SV_ProjectPhase/Task6/TaskManager/router"
 	"context"
+	"errors"
+	"fmt"
 	"log" // Changed from time for consistent logging of errors
 	"os"
 	"time"
@@ -63,11 +66,54 @@ func main() {
 
 	// Get a handle to the database and collection
 	databaseName := "learning_phase" // Can be configured
-	collectionName := "task6"        // Can be configured
-	taskCollection := client.Database(databaseName).Collection(collectionName)
+	taskCollectionName := "task6"    // Can be configured
+	userCollectionName := "user6"    // Can be configured
+	taskCollection := client.Database(databaseName).Collection(taskCollectionName)
+	userCollection := client.Database(databaseName).Collection(userCollectionName)
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "default secret"
+		fmt.Println("WARNING: JWT_SECRET environment variable not set. Using default secret.")
+	}
 
-	manager := data.NewTaskManager(taskCollection)
-	controller := controllers.NewTaskController(manager)
+	taskManager := data.NewTaskManager(taskCollection)
+	userManager := data.NewUserManager(userCollection, jwtSecret)
+
+	// Automatically add admin from enviroment variable if it doesn't already exsist in database
+	adminUsername := os.Getenv("ADMIN_USERNAME")
+	if adminUsername == "" {
+		adminUsername = "admin"
+		log.Println("WARNING: ADMIN_USERNAME not set in .env or environment. Using default value.")
+	}
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	if adminPassword == "" {
+		adminPassword = "password"
+		log.Println("WARNING: ADMIN_PASSWORD not set in .env or environment. Using default value.")
+	}
+
+	log.Printf("Checking for default admin user '%s'...", adminUsername)
+	adminUser, err := userManager.GetByUsername(ctx, adminUsername) // Use the context from main
+	if err != nil {
+		if errors.Is(err, data.ErrUserNotFound) {
+			log.Printf("Default admin user '%s' not found. Attempting to create...", adminUsername)
+			newAdmin := models.User{
+				Username: adminUsername,
+				Password: adminPassword,
+				Role:     models.RoleAdmin, // Ensure this user is an admin
+			}
+			_, regErr := userManager.RegisterUser(ctx, newAdmin) // Use the context from main
+			if regErr != nil {
+				log.Fatalf("Failed to create default admin user '%s': %v", adminUsername, regErr)
+			}
+			log.Printf("Successfully created default admin user '%s'", adminUsername)
+		} else {
+			log.Fatalf("Failed to check for default admin user '%s': %v", adminUsername, err)
+		}
+	} else {
+		log.Printf("Default admin user '%s' already exists (ID: %s).", adminUsername, adminUser.Id.Hex())
+	}
+
+	controller := controllers.NewTaskController(taskManager, userManager)
 	router := router.NewRouter(controller)
 	router.Run(":8080")
 }

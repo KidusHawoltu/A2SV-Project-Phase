@@ -19,11 +19,14 @@ import (
 )
 
 var (
-	testClient     *mongo.Client
-	testCollection *mongo.Collection
-	testManager    TaskManager
-	databaseName   = "test_learning_phase" // Use a separate DB for testing!
-	collectionName = "test_task6"          // Use a separate collection for testing!
+	testClient         *mongo.Client
+	testTaskCollection *mongo.Collection
+	testUserCollection *mongo.Collection
+	testTaskManager    TaskManager
+	testUserManager    UserManager
+	databaseName       = "test_learning_phase" // Use a separate DB for testing!
+	taskCollectionName = "test_task6"          // Use a separate collection for testing!
+	userCollectionName = "test_user6"          // Use a separate collection for testing!
 )
 
 // TestMain runs before all tests in the package.
@@ -64,8 +67,10 @@ func TestMain(m *testing.M) {
 	}
 	log.Println("Successfully connected to MongoDB for tests!")
 
-	testCollection = testClient.Database(databaseName).Collection(collectionName)
-	testManager = NewTaskManager(testCollection)
+	testTaskCollection = testClient.Database(databaseName).Collection(taskCollectionName)
+	testTaskManager = NewTaskManager(testTaskCollection)
+	testUserCollection = testClient.Database(databaseName).Collection(userCollectionName)
+	testUserManager = NewUserManager(testUserCollection, "test_jwt_secret")
 
 	// 2. Run all tests
 	code := m.Run()
@@ -80,19 +85,19 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// setupTestCollection cleans the test collection before each test.
+// setupTestTaskCollection cleans the test collection before each test.
 // This ensures test isolation.
-func setupTestCollection(t *testing.T) {
+func setupTestTaskCollection(t *testing.T) {
 	// Pass context to Drop command
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Drop the entire collection to ensure a clean slate
-	err := testCollection.Drop(ctx)
+	err := testTaskCollection.Drop(ctx)
 	if err != nil && err.Error() != "ns not found" { // "ns not found" is okay if collection doesn't exist yet
 		t.Fatalf("Failed to drop test collection: %v", err)
 	}
-	log.Printf("Cleaned test collection '%s' for new test.", collectionName)
+	log.Printf("Cleaned test collection '%s' for new test.", taskCollectionName)
 }
 
 // addSampleTasks is a helper to add common data for tests that require initial tasks.
@@ -115,7 +120,7 @@ func addSampleTasks(ctx context.Context, t *testing.T) ([]models.Task, error) {
 	// Add tasks one by one to get their generated ObjectIDs
 	var insertedTasks []models.Task
 	for _, task := range tasks {
-		createdTask, err := testManager.AddTask(ctx, task)
+		createdTask, err := testTaskManager.AddTask(ctx, task)
 		if err != nil {
 			t.Fatalf("Failed to add sample task: %v", err)
 		}
@@ -126,7 +131,7 @@ func addSampleTasks(ctx context.Context, t *testing.T) ([]models.Task, error) {
 
 // TestAddTask tests the AddTask method.
 func TestAddTask(t *testing.T) {
-	setupTestCollection(t) // Ensure a clean collection for this test
+	setupTestTaskCollection(t) // Ensure a clean collection for this test
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -139,7 +144,7 @@ func TestAddTask(t *testing.T) {
 	}
 
 	// Act
-	createdTask, err := testManager.AddTask(ctx, taskToAdd)
+	createdTask, err := testTaskManager.AddTask(ctx, taskToAdd)
 
 	// Assert
 	assert.NoError(t, err, "AddTask should not return an error")
@@ -147,7 +152,7 @@ func TestAddTask(t *testing.T) {
 	assert.False(t, createdTask.Id.IsZero(), "ID of the created task should not be empty") // ID is now primitive.ObjectID
 
 	// Verify it was actually stored by trying to retrieve it
-	retrievedTask, err := testManager.GetTaskById(ctx, createdTask.Id)
+	retrievedTask, err := testTaskManager.GetTaskById(ctx, createdTask.Id)
 	assert.NoError(t, err)
 	// Compare relevant fields, as time.Time might have subtle differences in stored/retrieved
 	assert.Equal(t, createdTask.Id, retrievedTask.Id)
@@ -160,7 +165,7 @@ func TestAddTask(t *testing.T) {
 
 // TestGetTasks tests the GetTasks method.
 func TestGetTasks(t *testing.T) {
-	setupTestCollection(t) // Clean before this test
+	setupTestTaskCollection(t) // Clean before this test
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -170,7 +175,7 @@ func TestGetTasks(t *testing.T) {
 	assert.Len(t, sampleTasks, 2)
 
 	// Act
-	allTasks, err := testManager.GetTasks(ctx)
+	allTasks, err := testTaskManager.GetTasks(ctx)
 
 	// Assert
 	assert.NoError(t, err)
@@ -188,7 +193,7 @@ func TestGetTasks(t *testing.T) {
 
 // TestGetTaskById tests the GetTaskById method for success and failure cases.
 func TestGetTaskById(t *testing.T) {
-	setupTestCollection(t) // Clean before this test
+	setupTestTaskCollection(t) // Clean before this test
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -207,7 +212,7 @@ func TestGetTaskById(t *testing.T) {
 
 	t.Run("should find an existing task", func(t *testing.T) {
 		// Act
-		task, err := testManager.GetTaskById(ctx, task1ID)
+		task, err := testTaskManager.GetTaskById(ctx, task1ID)
 
 		// Assert
 		assert.NoError(t, err, "Should not return an error for an existing ID")
@@ -221,7 +226,7 @@ func TestGetTaskById(t *testing.T) {
 		nonExistentID := primitive.NewObjectID()
 
 		// Act
-		task, err := testManager.GetTaskById(ctx, nonExistentID)
+		task, err := testTaskManager.GetTaskById(ctx, nonExistentID)
 
 		// Assert
 		assert.True(t, errors.Is(err, ErrTaskNotFound), "Error should be ErrTaskNotFound")
@@ -232,7 +237,7 @@ func TestGetTaskById(t *testing.T) {
 
 // TestUpdateTask tests the UpdateTask method.
 func TestUpdateTask(t *testing.T) {
-	setupTestCollection(t) // Clean before this test
+	setupTestTaskCollection(t) // Clean before this test
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -255,7 +260,7 @@ func TestUpdateTask(t *testing.T) {
 		}
 
 		// Act
-		updatedTask, err := testManager.UpdateTask(ctx, taskToUpdateID, updatePayload)
+		updatedTask, err := testTaskManager.UpdateTask(ctx, taskToUpdateID, updatePayload)
 
 		// Assert
 		assert.NoError(t, err)
@@ -266,7 +271,7 @@ func TestUpdateTask(t *testing.T) {
 		assert.WithinDuration(t, updatePayload.DueDate, updatedTask.DueDate, time.Second) // Compare dates loosely
 
 		// Verify the change was persisted
-		retrievedTask, _ := testManager.GetTaskById(ctx, taskToUpdateID)
+		retrievedTask, _ := testTaskManager.GetTaskById(ctx, taskToUpdateID)
 		assert.Equal(t, "Updated Title", retrievedTask.Title)
 		assert.Equal(t, models.Done, retrievedTask.Status)
 	})
@@ -276,7 +281,7 @@ func TestUpdateTask(t *testing.T) {
 		nonExistentID := primitive.NewObjectID()
 
 		// Act
-		_, err := testManager.UpdateTask(ctx, nonExistentID, models.Task{Title: "Won't work"})
+		_, err := testTaskManager.UpdateTask(ctx, nonExistentID, models.Task{Title: "Won't work"})
 
 		// Assert
 		assert.True(t, errors.Is(err, ErrTaskNotFound), "Error should be ErrTaskNotFound")
@@ -286,7 +291,7 @@ func TestUpdateTask(t *testing.T) {
 
 // TestDeleteTask tests the DeleteTask method.
 func TestDeleteTask(t *testing.T) {
-	setupTestCollection(t) // Clean before this test
+	setupTestTaskCollection(t) // Clean before this test
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -302,18 +307,18 @@ func TestDeleteTask(t *testing.T) {
 
 	t.Run("should delete an existing task", func(t *testing.T) {
 		// Act
-		err := testManager.DeleteTask(ctx, taskToDeleteID)
+		err := testTaskManager.DeleteTask(ctx, taskToDeleteID)
 
 		// Assert
 		assert.NoError(t, err, "Deleting an existing task should not produce an error")
 
 		// Verify it's gone
-		_, errAfterDelete := testManager.GetTaskById(ctx, taskToDeleteID)
+		_, errAfterDelete := testTaskManager.GetTaskById(ctx, taskToDeleteID)
 		assert.True(t, errors.Is(errAfterDelete, ErrTaskNotFound), "Error should be ErrTaskNotFound")
 		assert.Contains(t, errAfterDelete.Error(), "not found", "Error message should indicate task not found")
 
 		// Verify other tasks are unaffected
-		allTasks, err := testManager.GetTasks(ctx)
+		allTasks, err := testTaskManager.GetTasks(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, allTasks, 1, "The total number of tasks should be 1 after deletion")
 		assert.Equal(t, sampleTasks[1].Title, allTasks[0].Title, "The remaining task should be the other sample task")
@@ -324,7 +329,7 @@ func TestDeleteTask(t *testing.T) {
 		nonExistentID := primitive.NewObjectID()
 
 		// Act
-		err := testManager.DeleteTask(ctx, nonExistentID)
+		err := testTaskManager.DeleteTask(ctx, nonExistentID)
 
 		// Assert
 		assert.True(t, errors.Is(err, ErrTaskNotFound), "Error should be ErrTaskNotFound")

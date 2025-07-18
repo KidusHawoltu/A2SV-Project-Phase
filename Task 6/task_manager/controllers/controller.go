@@ -13,19 +13,26 @@ import (
 
 type TaskController struct {
 	taskManager data.TaskManager
+	userManager data.UserManager
 }
 
-func NewTaskController(tm data.TaskManager) *TaskController {
+func NewTaskController(tm data.TaskManager, um data.UserManager) *TaskController {
 	return &TaskController{
 		taskManager: tm,
+		userManager: um,
 	}
 }
 
 // Helper function for generic error responses
 func sendErrorResponse(c *gin.Context, statusCode int, message string, err error) {
+	// If err is nil or empty, ensure "error" field is still present but empty string
+	errorMsg := ""
+	if err != nil {
+		errorMsg = err.Error()
+	}
 	c.JSON(statusCode, gin.H{
 		"message": message,
-		"error":   err.Error(),
+		"error":   errorMsg,
 	})
 }
 
@@ -84,7 +91,7 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 	}
 
 	if !updatedTask.Status.IsValid() {
-		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("Invalid status provided: '%v'", updatedTask.Status)})
+		sendErrorResponse(c, http.StatusBadRequest, fmt.Sprintf("Invalid status provided: '%v'", updatedTask.Status), errors.New(""))
 		return
 	}
 
@@ -130,7 +137,7 @@ func (tc *TaskController) AddTask(c *gin.Context) {
 		return
 	}
 	if !task.Status.IsValid() {
-		c.JSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("Invalid status provided: '%v'", task.Status)})
+		sendErrorResponse(c, http.StatusBadRequest, fmt.Sprintf("Invalid status provided: '%v'", task.Status), errors.New(""))
 		return
 	}
 
@@ -141,4 +148,52 @@ func (tc *TaskController) AddTask(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, newTask)
+}
+
+func (tc *TaskController) RegisterUser(c *gin.Context) {
+	var input models.UserRegisterLogin
+	if err := c.BindJSON(&input); err != nil {
+		sendErrorResponse(c, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	user := models.User{
+		Username: input.Username,
+		Password: input.Password,
+		Role:     models.RoleUser,
+	}
+
+	newUser, err := tc.userManager.RegisterUser(c.Request.Context(), user)
+	if err != nil {
+		// Specific error handling for user registration
+		if errors.Is(err, data.ErrUsernameTaken) {
+			sendErrorResponse(c, http.StatusConflict, "Username already taken", err)
+			return
+		}
+		sendErrorResponse(c, http.StatusInternalServerError, "Failed to register user", err)
+		return
+	}
+	// Do not return password hash
+	newUser.Password = ""
+	c.JSON(http.StatusCreated, newUser)
+}
+
+func (tc *TaskController) Login(c *gin.Context) {
+	var input models.UserRegisterLogin
+	if err := c.BindJSON(&input); err != nil {
+		sendErrorResponse(c, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	token, err := tc.userManager.Login(c.Request.Context(), input.Username, input.Password)
+	if err != nil {
+		// Specific error handling for login failures
+		if errors.Is(err, data.ErrInvalidCredentials) {
+			sendErrorResponse(c, http.StatusUnauthorized, "Invalid username or password", err) // Use 401
+			return
+		}
+		sendErrorResponse(c, http.StatusInternalServerError, "Login failed", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": token})
 }
