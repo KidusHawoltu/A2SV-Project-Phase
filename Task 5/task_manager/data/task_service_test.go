@@ -3,6 +3,7 @@ package data
 import (
 	"A2SV_ProjectPhase/Task5/TaskManager/models"
 	"context"
+	"errors"
 	"log"
 	"os"
 	"sort"
@@ -223,16 +224,9 @@ func TestGetTaskById(t *testing.T) {
 		task, err := testManager.GetTaskById(ctx, nonExistentID)
 
 		// Assert
-		assert.Error(t, err, "Should return an error for a non-existent ID")
+		assert.True(t, errors.Is(err, ErrTaskNotFound), "Error should be ErrTaskNotFound")
 		assert.Contains(t, err.Error(), nonExistentID.Hex(), "Error message should contain the ID") // Specific error message
 		assert.True(t, task.Id.IsZero(), "Returned task should have zero ID when not found")        // task struct will be zero value
-	})
-
-	t.Run("should return an error for an invalid ObjectID format", func(t *testing.T) {
-		// This scenario is handled by models.Task if you're unmarshaling from input,
-		// but if you were to manually pass a malformed ID string to a conversion function,
-		// it would be relevant. For primitive.ObjectID directly, it's always valid.
-		// No direct test needed here as primitive.NewObjectID() always creates a valid one.
 	})
 }
 
@@ -285,7 +279,7 @@ func TestUpdateTask(t *testing.T) {
 		_, err := testManager.UpdateTask(ctx, nonExistentID, models.Task{Title: "Won't work"})
 
 		// Assert
-		assert.Error(t, err, "Should return an error when trying to update a non-existent task")
+		assert.True(t, errors.Is(err, ErrTaskNotFound), "Error should be ErrTaskNotFound")
 		assert.Contains(t, err.Error(), nonExistentID.Hex(), "Error message should contain the ID")
 	})
 }
@@ -315,7 +309,7 @@ func TestDeleteTask(t *testing.T) {
 
 		// Verify it's gone
 		_, errAfterDelete := testManager.GetTaskById(ctx, taskToDeleteID)
-		assert.Error(t, errAfterDelete, "Should return an error when trying to get a deleted task")
+		assert.True(t, errors.Is(errAfterDelete, ErrTaskNotFound), "Error should be ErrTaskNotFound")
 		assert.Contains(t, errAfterDelete.Error(), "not found", "Error message should indicate task not found")
 
 		// Verify other tasks are unaffected
@@ -333,7 +327,7 @@ func TestDeleteTask(t *testing.T) {
 		err := testManager.DeleteTask(ctx, nonExistentID)
 
 		// Assert
-		assert.Error(t, err, "Should return an error when trying to delete a non-existent task")
+		assert.True(t, errors.Is(err, ErrTaskNotFound), "Error should be ErrTaskNotFound")
 		assert.Contains(t, err.Error(), nonExistentID.Hex(), "Error message should contain the ID")
 		assert.Contains(t, err.Error(), "not found", "Error message should indicate task not found")
 	})

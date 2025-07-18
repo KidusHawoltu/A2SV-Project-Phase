@@ -3,6 +3,7 @@ package data
 import (
 	"A2SV_ProjectPhase/Task5/TaskManager/models"
 	"context"
+	"errors"
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson" // Import bson package
@@ -14,6 +15,9 @@ import (
 type TaskCollection struct {
 	collection *mongo.Collection
 }
+
+// Define a sentinel error for "task not found"
+var ErrTaskNotFound = errors.New("task not found")
 
 // TaskManager interface now includes context.Context for all operations.
 type TaskManager interface {
@@ -52,7 +56,7 @@ func (tc *TaskCollection) GetTaskById(ctx context.Context, id primitive.ObjectID
 	err := tc.collection.FindOne(ctx, filter).Decode(&task)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return models.Task{}, fmt.Errorf("task with id '%s' not found", id.Hex())
+			return models.Task{}, fmt.Errorf("%w: task with id '%s'", ErrTaskNotFound, id.Hex())
 		}
 		return models.Task{}, fmt.Errorf("failed to retrieve task: %w", err)
 	}
@@ -82,7 +86,7 @@ func (tc *TaskCollection) UpdateTask(ctx context.Context, id primitive.ObjectID,
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return models.Task{}, fmt.Errorf("task with id '%s' not found", id.Hex())
+			return models.Task{}, fmt.Errorf("%w: task with id '%s'", ErrTaskNotFound, id.Hex())
 		}
 		return models.Task{}, fmt.Errorf("failed to update task: %w", err)
 	}
@@ -97,7 +101,7 @@ func (tc *TaskCollection) DeleteTask(ctx context.Context, id primitive.ObjectID)
 		return fmt.Errorf("failed to delete task: %w", err)
 	}
 	if res.DeletedCount == 0 {
-		return fmt.Errorf("task with id '%s' not found", id.Hex())
+		return fmt.Errorf("%w: task with id '%s'", ErrTaskNotFound, id.Hex())
 	}
 	return nil
 }
