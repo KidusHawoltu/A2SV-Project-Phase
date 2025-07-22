@@ -25,7 +25,11 @@ func main() {
 	// --- 0. Load Configuration / Environment Variables ---
 	err := godotenv.Load("../.env")
 	if err != nil {
-		log.Printf("Warning: No .env file found or failed to load: %v", err)
+		// if not in parent folder, try to load from current folder
+		err = godotenv.Load()
+		if err != nil {
+			log.Printf("Warning: No .env file found or failed to load: %v", err)
+		}
 	}
 
 	mongoURI := os.Getenv("MONGO_URI")

@@ -60,7 +60,7 @@ func (tr *TaskRepo) GetAllTasks(c context.Context) ([]*domain.Task, error) {
 	}
 	defer cursor.Close(c)
 
-	var tasks []*domain.Task
+	tasks := []*domain.Task{}
 	if err = cursor.All(c, &tasks); err != nil {
 		return nil, fmt.Errorf("repository: failed to decode tasks from cursor: %w", err)
 	}
