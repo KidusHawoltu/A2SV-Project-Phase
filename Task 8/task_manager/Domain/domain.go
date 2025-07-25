@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -87,7 +88,7 @@ type User struct {
 
 func NewUser(username string, hashedPassword string) (*User, error) {
 	if username == "" || hashedPassword == "" {
-		return nil, errors.New("missing required user fields for new user")
+		return nil, fmt.Errorf("%w: missing required user fields for new user", ErrValidationFailed)
 	}
 	return &User{
 		Id:           primitive.NilObjectID,

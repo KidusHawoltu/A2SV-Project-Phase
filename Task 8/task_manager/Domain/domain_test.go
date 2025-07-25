@@ -1,137 +1,103 @@
 package domain_test
 
 import (
-	"A2SV_ProjectPhase/Task8/TaskManager/Domain" // Import the domain package
+	"A2SV_ProjectPhase/Task8/TaskManager/Domain" // Adjust your import path
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
 )
 
-// TestNewTask_Success tests successful Task creation
-func TestNewTask_Success(t *testing.T) {
+//===========================================================================
+// Task Test Suite
+//===========================================================================
+
+// TaskSuite defines the test suite for the Task domain object.
+type TaskSuite struct {
+	suite.Suite
+}
+
+// TestTaskSuite is the runner for the TaskSuite. 'go test' will find this function.
+func TestTaskSuite(t *testing.T) {
+	suite.Run(t, new(TaskSuite))
+}
+
+// TestSuccess tests the successful creation of a Task.
+func (s *TaskSuite) TestSuccess() {
 	title := "Test Task"
 	description := "Test Description"
-	dueDate := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour) // Future date, truncated
+	dueDate := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour)
 	status := domain.Pending
 
 	task, err := domain.NewTask(title, description, dueDate, status)
 
-	if err != nil {
-		t.Fatalf("NewTask() returned unexpected error: %v", err)
-	}
-	if task == nil {
-		t.Fatal("NewTask() returned nil task")
-	}
-	if task.Title != title {
-		t.Errorf("NewTask() Title mismatch: got %s, want %s", task.Title, title)
-	}
-	if task.Description != description {
-		t.Errorf("NewTask() Description mismatch: got %s, want %s", task.Description, description)
-	}
-	if !task.DueDate.Equal(dueDate) {
-		t.Errorf("NewTask() DueDate mismatch: got %v, want %v", task.DueDate, dueDate)
-	}
-	if task.Status != status {
-		t.Errorf("NewTask() Status mismatch: got %s, want %s", task.Status, status)
-	}
+	// Use Require for checks that must pass for the test to be valid.
+	s.Require().NoError(err, "NewTask should not return an error on valid input")
+	s.Require().NotNil(task, "NewTask should not return a nil task on valid input")
+
+	// Use Equal (from Assert) for checking individual fields.
+	s.Equal(title, task.Title)
+	s.Equal(description, task.Description)
+	s.Equal(dueDate, task.DueDate)
+	s.Equal(status, task.Status)
 }
 
-// TestNewTask_Failure_EmptyTitle tests creation with an empty title
-func TestNewTask_Failure_EmptyTitle(t *testing.T) {
-	_, err := domain.NewTask("", "desc", time.Now().Add(time.Hour), domain.Pending)
-	if err == nil {
-		t.Fatal("NewTask() did not return error for empty title")
-	}
-	if err.Error() != "task title cannot be empty" {
-		t.Errorf("NewTask() error message mismatch: got %q, want %q", err.Error(), "task title cannot be empty")
-	}
-}
-
-// TestNewTask_Failure_InvalidStatus tests creation with an invalid status
-func TestNewTask_Failure_InvalidStatus(t *testing.T) {
-	_, err := domain.NewTask("Title", "desc", time.Now().Add(time.Hour), "InvalidStatus")
-	if err == nil {
-		t.Fatal("NewTask() did not return error for invalid status")
-	}
-	if err.Error() != "invalid task status" {
-		t.Errorf("NewTask() error message mismatch: got %q, want %q", err.Error(), "invalid task status")
-	}
-}
-
-// TestNewTask_Failure_EmptyDueDate tests creation with a zero/empty due date
-func TestNewTask_Failure_EmptyDueDate(t *testing.T) {
-	_, err := domain.NewTask("Title", "desc", time.Time{}, domain.Pending)
-	if err == nil {
-		t.Fatal("NewTask() did not return error for empty due date")
-	}
-	if err.Error() != "task due date cannot be empty" {
-		t.Errorf("NewTask() error message mismatch: got %q, want %q", err.Error(), "task due date cannot be empty")
-	}
-}
-
-// TestNewTask_Failure_PastDueDate tests creation with a due date in the past
-func TestNewTask_Failure_PastDueDate(t *testing.T) {
-	pastDate := time.Now().Add(-24 * time.Hour) // 24 hours ago
-	_, err := domain.NewTask("Title", "desc", pastDate, domain.Pending)
-	if err == nil {
-		t.Fatal("NewTask() did not return error for past due date")
-	}
-	if err.Error() != "task due date cannot be in the past" {
-		t.Errorf("NewTask() error message mismatch: got %q, want %q", err.Error(), "task due date cannot be in the past")
-	}
-}
-
-// TestNewUser_Success tests successful User creation
-func TestNewUser_Success(t *testing.T) {
-	username := "testuser"
-	hashedPassword := "hashedpassword"
-
-	user, err := domain.NewUser(username, hashedPassword)
-
-	if err != nil {
-		t.Fatalf("NewUser() returned unexpected error: %v", err)
-	}
-	if user == nil {
-		t.Fatal("NewUser() returned nil user")
-	}
-	if user.Username != username {
-		t.Errorf("NewUser() Username mismatch: got %s, want %s", user.Username, username)
-	}
-	if user.PasswordHash != hashedPassword {
-		t.Errorf("NewUser() PasswordHash mismatch: got %s, want %s", user.PasswordHash, hashedPassword)
-	}
-	if user.Role != domain.RoleUser {
-		t.Errorf("NewUser() Role mismatch: got %s, want %s", user.Role, domain.RoleUser)
-	}
-}
-
-// TestNewUser_Failure_MissingFields tests creation with missing fields
-func TestNewUser_Failure_MissingFields(t *testing.T) {
-	tests := []struct {
-		name     string
-		username string
-		password string
+// TestValidation consolidates all validation failure tests for NewTask.
+func (s *TaskSuite) TestValidation() {
+	testCases := []struct {
+		name          string
+		title         string
+		description   string
+		dueDate       time.Time
+		status        domain.TaskStatus
+		expectedError string
 	}{
-		{"Empty username", "", "pass"},
-		{"Empty password", "user", ""},
-		{"Both empty", "", ""},
+		{
+			name:          "Empty Title",
+			title:         "",
+			description:   "desc",
+			dueDate:       time.Now().Add(time.Hour),
+			status:        domain.Pending,
+			expectedError: "task title cannot be empty",
+		},
+		{
+			name:          "Invalid Status",
+			title:         "Title",
+			description:   "desc",
+			dueDate:       time.Now().Add(time.Hour),
+			status:        "InvalidStatus",
+			expectedError: "invalid task status",
+		},
+		{
+			name:          "Empty Due Date",
+			title:         "Title",
+			description:   "desc",
+			dueDate:       time.Time{}, // Zero value for time
+			status:        domain.Pending,
+			expectedError: "task due date cannot be empty",
+		},
+		{
+			name:          "Past Due Date",
+			title:         "Title",
+			description:   "desc",
+			dueDate:       time.Now().Add(-24 * time.Hour),
+			status:        domain.Pending,
+			expectedError: "task due date cannot be in the past",
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := domain.NewUser(tt.username, tt.password)
-			if err == nil {
-				t.Fatalf("NewUser() did not return error for %s", tt.name)
-			}
-			if err.Error() != "missing required user fields for new user" {
-				t.Errorf("NewUser() error message mismatch: got %q, want %q", err.Error(), "missing required user fields for new user")
-			}
+	for _, tc := range testCases {
+		s.Run(tc.name, func() {
+			_, err := domain.NewTask(tc.title, tc.description, tc.dueDate, tc.status)
+			s.Require().Error(err, "Expected an error for invalid input")
+			s.Equal(tc.expectedError, err.Error(), "Error message mismatch")
 		})
 	}
 }
 
-// TestTaskStatus_IsValid tests TaskStatus IsValid method
-func TestTaskStatus_IsValid(t *testing.T) {
-	tests := []struct {
+// TestStatusIsValid tests the IsValid method for TaskStatus.
+func (s *TaskSuite) TestStatusIsValid() {
+	testCases := []struct {
 		status domain.TaskStatus
 		want   bool
 	}{
@@ -142,18 +108,67 @@ func TestTaskStatus_IsValid(t *testing.T) {
 		{"", false},
 	}
 
-	for _, tt := range tests {
-		t.Run(string(tt.status), func(t *testing.T) {
-			if got := tt.status.IsValid(); got != tt.want {
-				t.Errorf("TaskStatus.IsValid() got %v, want %v for status %q", got, tt.want, tt.status)
-			}
+	for _, tc := range testCases {
+		s.Run(string(tc.status), func() {
+			got := tc.status.IsValid()
+			s.Equal(tc.want, got)
 		})
 	}
 }
 
-// TestUserRole_IsValid tests UserRole IsValid method
-func TestUserRole_IsValid(t *testing.T) {
-	tests := []struct {
+//===========================================================================
+// User Test Suite
+//===========================================================================
+
+// UserSuite defines the test suite for the User domain object.
+type UserSuite struct {
+	suite.Suite
+}
+
+// TestUserSuite is the runner for the UserSuite.
+func TestUserSuite(t *testing.T) {
+	suite.Run(t, new(UserSuite))
+}
+
+// TestSuccess tests the successful creation of a User.
+func (s *UserSuite) TestSuccess() {
+	username := "testuser"
+	hashedPassword := "a-very-secure-hashed-password"
+
+	user, err := domain.NewUser(username, hashedPassword)
+
+	s.Require().NoError(err, "NewUser should not return an error on valid input")
+	s.Require().NotNil(user, "NewUser should not return a nil user on valid input")
+
+	s.Equal(username, user.Username)
+	s.Equal(hashedPassword, user.PasswordHash)
+	s.Equal(domain.RoleUser, user.Role, "Default role should be 'user'")
+}
+
+// TestValidation_MissingFields tests user creation with missing fields.
+func (s *UserSuite) TestValidation_MissingFields() {
+	testCases := []struct {
+		name     string
+		username string
+		password string
+	}{
+		{"Empty username", "", "pass"},
+		{"Empty password", "user", ""},
+		{"Both empty", "", ""},
+	}
+
+	for _, tc := range testCases {
+		s.Run(tc.name, func() {
+			_, err := domain.NewUser(tc.username, tc.password)
+			s.Require().Error(err)
+			s.ErrorIs(err, domain.ErrValidationFailed)
+		})
+	}
+}
+
+// TestRoleIsValid tests the IsValid method for UserRole.
+func (s *UserSuite) TestRoleIsValid() {
+	testCases := []struct {
 		role domain.UserRole
 		want bool
 	}{
@@ -163,11 +178,10 @@ func TestUserRole_IsValid(t *testing.T) {
 		{"", false},
 	}
 
-	for _, tt := range tests {
-		t.Run(string(tt.role), func(t *testing.T) {
-			if got := tt.role.IsValid(); got != tt.want {
-				t.Errorf("UserRole.IsValid() got %v, want %v for role %q", got, tt.want, tt.role)
-			}
+	for _, tc := range testCases {
+		s.Run(string(tc.role), func() {
+			got := tc.role.IsValid()
+			s.Equal(tc.want, got)
 		})
 	}
 }

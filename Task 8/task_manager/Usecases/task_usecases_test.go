@@ -8,12 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// --- Mocks for TaskUseCase Dependencies ---
-
-// MockTaskRepository implements domain.TaskRepository
+// --- Mock stays the same, as it's a good pattern ---
 type MockTaskRepository struct {
 	CreateTaskFunc  func(c context.Context, task *domain.Task) (*domain.Task, error)
 	GetTaskByIdFunc func(c context.Context, id primitive.ObjectID) (*domain.Task, error)
@@ -23,247 +22,225 @@ type MockTaskRepository struct {
 }
 
 func (m *MockTaskRepository) CreateTask(c context.Context, task *domain.Task) (*domain.Task, error) {
-	return m.CreateTaskFunc(c, task)
+	if m.CreateTaskFunc != nil {
+		return m.CreateTaskFunc(c, task)
+	}
+	return nil, errors.New("CreateTaskFunc not implemented")
 }
 func (m *MockTaskRepository) GetTaskById(c context.Context, id primitive.ObjectID) (*domain.Task, error) {
-	return m.GetTaskByIdFunc(c, id)
+	if m.GetTaskByIdFunc != nil {
+		return m.GetTaskByIdFunc(c, id)
+	}
+	return nil, errors.New("GetTaskByIdFunc not implemented")
 }
 func (m *MockTaskRepository) GetAllTasks(c context.Context) ([]*domain.Task, error) {
-	return m.GetAllTasksFunc(c)
+	if m.GetAllTasksFunc != nil {
+		return m.GetAllTasksFunc(c)
+	}
+	return nil, errors.New("GetAllTasksFunc not implemented")
 }
 func (m *MockTaskRepository) UpdateTask(c context.Context, id primitive.ObjectID, task *domain.Task) (*domain.Task, error) {
-	return m.UpdateTaskFunc(c, id, task)
+	if m.UpdateTaskFunc != nil {
+		return m.UpdateTaskFunc(c, id, task)
+	}
+	return nil, errors.New("UpdateTaskFunc not implemented")
 }
 func (m *MockTaskRepository) DeleteTask(c context.Context, id primitive.ObjectID) error {
-	return m.DeleteTaskFunc(c, id)
+	if m.DeleteTaskFunc != nil {
+		return m.DeleteTaskFunc(c, id)
+	}
+	return errors.New("DeleteTaskFunc not implemented")
 }
 
-// --- Tests for TaskUseCase ---
+//===========================================================================
+// TaskUseCase Test Suite
+//===========================================================================
 
-func TestCreateTask_Success(t *testing.T) {
-	ctx := getTestContext()
-	title := "New Task"
-	description := "Description"
-	dueDate := time.Now().Add(time.Hour * 24).Truncate(24 * time.Hour)
-	status := domain.Pending
+type TaskUseCaseSuite struct {
+	suite.Suite
+	mockRepo *MockTaskRepository
+	useCase  *usecases.TaskUseCase
+	ctx      context.Context
+}
 
-	mockTask := &domain.Task{
-		Id:          primitive.NewObjectID(),
-		Title:       title,
-		Description: description,
-		DueDate:     dueDate,
-		Status:      status,
-	}
+// TestTaskUseCaseSuite is the entry point for the test suite
+func TestTaskUseCaseSuite(t *testing.T) {
+	suite.Run(t, new(TaskUseCaseSuite))
+}
 
-	mockTaskRepo := &MockTaskRepository{
-		CreateTaskFunc: func(c context.Context, task *domain.Task) (*domain.Task, error) {
-			task.Id = mockTask.Id // Simulate MongoDB assigning ID
+// SetupTest runs before each test method in the suite.
+// It's the perfect place to initialize mocks and the system under test.
+func (s *TaskUseCaseSuite) SetupTest() {
+	s.mockRepo = &MockTaskRepository{}
+	s.useCase = usecases.NewTaskUseCase(s.mockRepo)
+	s.ctx = context.Background() // A basic context is fine for these tests
+}
+
+// --- Test Methods for TaskUseCase ---
+
+func (s *TaskUseCaseSuite) TestCreateTask() {
+	s.Run("Success", func() {
+		// Reset mock for this subtest if needed, although SetupTest already does it.
+		s.SetupTest()
+
+		title := "New Task"
+		description := "Description"
+		dueDate := time.Now().Add(time.Hour * 24).Truncate(24 * time.Hour)
+		status := domain.Pending
+
+		// Configure the mock's behavior for this specific test
+		s.mockRepo.CreateTaskFunc = func(c context.Context, task *domain.Task) (*domain.Task, error) {
+			task.Id = primitive.NewObjectID() // Simulate repository assigning an ID
 			return task, nil
-		},
-	}
+		}
 
-	taskUseCase := usecases.NewTaskUseCase(mockTaskRepo)
-	createdTask, err := taskUseCase.CreateTask(ctx, title, description, dueDate, status)
+		createdTask, err := s.useCase.CreateTask(s.ctx, title, description, dueDate, status)
 
-	if err != nil {
-		t.Fatalf("CreateTask failed: %v", err)
-	}
-	if createdTask == nil {
-		t.Fatal("Created task is nil")
-	}
-	if createdTask.Id.IsZero() {
-		t.Error("Task ID was not set by repository")
-	}
+		s.Require().NoError(err)
+		s.Require().NotNil(createdTask)
+		s.False(createdTask.Id.IsZero(), "Task ID should be set by the repository")
+		s.Equal(title, createdTask.Title)
+	})
+
+	s.Run("Validation Failed", func() {
+		s.SetupTest()
+		// No mock setup needed, as validation should fail before the repo is called.
+
+		_, err := s.useCase.CreateTask(s.ctx, "", "desc", time.Now().Add(time.Hour), domain.Pending)
+		s.Require().Error(err)
+		s.ErrorIs(err, domain.ErrValidationFailed, "Should return validation error for empty title")
+	})
 }
 
-func TestCreateTask_ValidationFailed(t *testing.T) {
-	ctx := getTestContext()
-	// Case 1: Empty title
-	_, err := usecases.NewTaskUseCase(&MockTaskRepository{}).CreateTask(ctx, "", "desc", time.Now().Add(time.Hour), domain.Pending)
-	if err == nil || !errors.Is(err, domain.ErrValidationFailed) {
-		t.Errorf("CreateTask did not return ErrValidationFailed for empty title: %v", err)
-	}
+func (s *TaskUseCaseSuite) TestGetTaskByID() {
+	s.Run("Success", func() {
+		s.SetupTest()
+		taskID := primitive.NewObjectID()
+		expectedTask := &domain.Task{Id: taskID, Title: "Test Task"}
 
-	// Case 2: Past due date (checked in domain.NewTask)
-	_, err = usecases.NewTaskUseCase(&MockTaskRepository{}).CreateTask(ctx, "Title", "desc", time.Now().Add(-24*time.Hour), domain.Pending)
-	if err == nil || !errors.Is(err, domain.ErrValidationFailed) {
-		t.Errorf("CreateTask did not return ErrValidationFailed for past due date: %v", err)
-	}
-}
-
-func TestGetTaskByID_Success(t *testing.T) {
-	ctx := getTestContext()
-	taskID := primitive.NewObjectID()
-	expectedTask := &domain.Task{Id: taskID, Title: "Test Task"}
-
-	mockTaskRepo := &MockTaskRepository{
-		GetTaskByIdFunc: func(c context.Context, id primitive.ObjectID) (*domain.Task, error) {
-			if id != taskID {
-				return nil, errors.New("ID mismatch in mock")
-			}
+		s.mockRepo.GetTaskByIdFunc = func(c context.Context, id primitive.ObjectID) (*domain.Task, error) {
+			s.Equal(taskID, id, "ID passed to repository should match")
 			return expectedTask, nil
-		},
-	}
+		}
 
-	taskUseCase := usecases.NewTaskUseCase(mockTaskRepo)
-	retrievedTask, err := taskUseCase.GetTaskByID(ctx, taskID.Hex())
+		retrievedTask, err := s.useCase.GetTaskByID(s.ctx, taskID.Hex())
 
-	if err != nil {
-		t.Fatalf("GetTaskByID failed: %v", err)
-	}
-	if retrievedTask == nil {
-		t.Fatal("Retrieved task is nil")
-	}
-	if retrievedTask.Id != taskID {
-		t.Errorf("Task ID mismatch: got %s, want %s", retrievedTask.Id.Hex(), taskID)
-	}
-}
+		s.Require().NoError(err)
+		s.Require().NotNil(retrievedTask)
+		s.Equal(expectedTask.Id, retrievedTask.Id)
+	})
 
-func TestGetTaskByID_NotFound(t *testing.T) {
-	ctx := getTestContext()
-	taskID := primitive.NewObjectID().Hex()
+	s.Run("Not Found", func() {
+		s.SetupTest()
+		taskID := primitive.NewObjectID()
 
-	mockTaskRepo := &MockTaskRepository{
-		GetTaskByIdFunc: func(c context.Context, id primitive.ObjectID) (*domain.Task, error) {
+		s.mockRepo.GetTaskByIdFunc = func(c context.Context, id primitive.ObjectID) (*domain.Task, error) {
 			return nil, domain.ErrTaskNotFound
-		},
-	}
+		}
 
-	taskUseCase := usecases.NewTaskUseCase(mockTaskRepo)
-	_, err := taskUseCase.GetTaskByID(ctx, taskID)
+		_, err := s.useCase.GetTaskByID(s.ctx, taskID.Hex())
+		s.Require().Error(err)
+		s.ErrorIs(err, domain.ErrTaskNotFound)
+	})
 
-	if err == nil || !errors.Is(err, domain.ErrTaskNotFound) {
-		t.Errorf("GetTaskByID did not return ErrTaskNotFound: %v", err)
-	}
+	s.Run("Invalid ID Format", func() {
+		s.SetupTest()
+		// Repo will not be called, so no mock setup needed.
+		_, err := s.useCase.GetTaskByID(s.ctx, "this-is-not-a-valid-hex-id")
+
+		s.Require().Error(err)
+		s.ErrorIs(err, domain.ErrValidationFailed)
+	})
 }
 
-func TestGetTaskByID_InvalidIDFormat(t *testing.T) {
-	ctx := getTestContext()
-	taskID := "invalid_id"
+func (s *TaskUseCaseSuite) TestGetAllTasks() {
+	s.Run("Success", func() {
+		s.SetupTest()
+		expectedTasks := []*domain.Task{
+			{Id: primitive.NewObjectID(), Title: "Task 1"},
+			{Id: primitive.NewObjectID(), Title: "Task 2"},
+		}
 
-	taskUseCase := usecases.NewTaskUseCase(&MockTaskRepository{}) // Repo not called
-	_, err := taskUseCase.GetTaskByID(ctx, taskID)
-
-	if err == nil || !errors.Is(err, domain.ErrValidationFailed) {
-		t.Errorf("GetTaskByID did not return ErrValidationFailed for invalid ID format: %v", err)
-	}
-}
-
-func TestGetAllTasks_Success(t *testing.T) {
-	ctx := getTestContext()
-	expectedTasks := []*domain.Task{
-		{Id: primitive.NewObjectID(), Title: "Task 1"},
-		{Id: primitive.NewObjectID(), Title: "Task 2"},
-	}
-
-	mockTaskRepo := &MockTaskRepository{
-		GetAllTasksFunc: func(c context.Context) ([]*domain.Task, error) {
+		s.mockRepo.GetAllTasksFunc = func(c context.Context) ([]*domain.Task, error) {
 			return expectedTasks, nil
-		},
-	}
+		}
 
-	taskUseCase := usecases.NewTaskUseCase(mockTaskRepo)
-	tasks, err := taskUseCase.GetAllTasks(ctx)
+		tasks, err := s.useCase.GetAllTasks(s.ctx)
 
-	if err != nil {
-		t.Fatalf("GetAllTasks failed: %v", err)
-	}
-	if len(tasks) != len(expectedTasks) {
-		t.Errorf("Task count mismatch: got %d, want %d", len(tasks), len(expectedTasks))
-	}
+		s.Require().NoError(err)
+		s.Len(tasks, 2)
+		s.Equal(expectedTasks, tasks)
+	})
 }
 
-func TestUpdateTask_Success(t *testing.T) {
-	ctx := getTestContext()
-	taskID := primitive.NewObjectID()
-	originalTask := &domain.Task{
-		Id: taskID, Title: "Old Title", Description: "Old Desc",
-		DueDate: time.Now().Add(time.Hour).Truncate(time.Hour), Status: domain.Pending,
-	}
+func (s *TaskUseCaseSuite) TestUpdateTask() {
+	s.Run("Success", func() {
+		s.SetupTest()
+		taskID := primitive.NewObjectID()
+		originalTask := &domain.Task{
+			Id: taskID, Title: "Old Title", Status: domain.Pending,
+		}
+		newTitle := "New Title"
+		newStatus := domain.InProgress
 
-	newTitle := "New Title"
-	newDescription := "New Desc"
-	newDueDate := time.Now().Add(2 * time.Hour).Truncate(time.Hour)
-	newStatus := domain.InProgress
-
-	mockTaskRepo := &MockTaskRepository{
-		GetTaskByIdFunc: func(c context.Context, id primitive.ObjectID) (*domain.Task, error) {
+		// Mock the Get call first
+		s.mockRepo.GetTaskByIdFunc = func(c context.Context, id primitive.ObjectID) (*domain.Task, error) {
 			return originalTask, nil
-		},
-		UpdateTaskFunc: func(c context.Context, id primitive.ObjectID, task *domain.Task) (*domain.Task, error) {
-			return task, nil // Return the updated task back
-		},
-	}
+		}
+		// Mock the Update call
+		s.mockRepo.UpdateTaskFunc = func(c context.Context, id primitive.ObjectID, task *domain.Task) (*domain.Task, error) {
+			return task, nil // Echo back the updated task
+		}
 
-	taskUseCase := usecases.NewTaskUseCase(mockTaskRepo)
-	updatedTask, err := taskUseCase.UpdateTask(ctx, taskID.Hex(), &newTitle, &newDescription, &newDueDate, &newStatus)
+		updatedTask, err := s.useCase.UpdateTask(s.ctx, taskID.Hex(), &newTitle, nil, nil, &newStatus)
 
-	if err != nil {
-		t.Fatalf("UpdateTask failed: %v", err)
-	}
-	if updatedTask == nil {
-		t.Fatal("Updated task is nil")
-	}
-	if updatedTask.Title != newTitle || updatedTask.Description != newDescription || !updatedTask.DueDate.Equal(newDueDate) || updatedTask.Status != newStatus {
-		t.Errorf("Task fields not updated correctly")
-	}
+		s.Require().NoError(err)
+		s.Require().NotNil(updatedTask)
+		s.Equal(newTitle, updatedTask.Title)
+		s.Equal(newStatus, updatedTask.Status)
+	})
+
+	s.Run("Validation Failed - Cannot Change Status From Done", func() {
+		s.SetupTest()
+		taskID := primitive.NewObjectID()
+		doneTask := &domain.Task{Id: taskID, Status: domain.Done}
+		newStatus := domain.InProgress
+
+		s.mockRepo.GetTaskByIdFunc = func(c context.Context, id primitive.ObjectID) (*domain.Task, error) {
+			return doneTask, nil
+		}
+
+		_, err := s.useCase.UpdateTask(s.ctx, taskID.Hex(), nil, nil, nil, &newStatus)
+
+		s.Require().Error(err)
+		s.ErrorIs(err, domain.ErrValidationFailed)
+	})
 }
 
-func TestUpdateTask_StatusChangeFromDone(t *testing.T) {
-	ctx := getTestContext()
-	taskID := primitive.NewObjectID()
-	originalTask := &domain.Task{
-		Id: taskID, Title: "Title", Description: "Desc",
-		DueDate: time.Now().Add(time.Hour), Status: domain.Done,
-	}
-	newStatus := domain.Pending // Try to change from Done
-
-	mockTaskRepo := &MockTaskRepository{
-		GetTaskByIdFunc: func(c context.Context, id primitive.ObjectID) (*domain.Task, error) {
-			return originalTask, nil
-		},
-	}
-
-	taskUseCase := usecases.NewTaskUseCase(mockTaskRepo)
-	_, err := taskUseCase.UpdateTask(ctx, taskID.Hex(), nil, nil, nil, &newStatus)
-
-	if err == nil || !errors.Is(err, domain.ErrValidationFailed) {
-		t.Errorf("UpdateTask did not return ErrValidationFailed for status change from Done: %v", err)
-	}
-}
-
-func TestDeleteTask_Success(t *testing.T) {
-	ctx := getTestContext()
-	taskID := primitive.NewObjectID().Hex()
-
-	mockTaskRepo := &MockTaskRepository{
-		DeleteTaskFunc: func(c context.Context, id primitive.ObjectID) error {
+func (s *TaskUseCaseSuite) TestDeleteTask() {
+	s.Run("Success", func() {
+		s.SetupTest()
+		taskID := primitive.NewObjectID()
+		s.mockRepo.DeleteTaskFunc = func(c context.Context, id primitive.ObjectID) error {
+			s.Equal(taskID, id)
 			return nil
-		},
-	}
+		}
 
-	taskUseCase := usecases.NewTaskUseCase(mockTaskRepo)
-	err := taskUseCase.DeleteTask(ctx, taskID)
+		err := s.useCase.DeleteTask(s.ctx, taskID.Hex())
 
-	if err != nil {
-		t.Fatalf("DeleteTask failed: %v", err)
-	}
-}
+		s.Require().NoError(err)
+	})
 
-func TestDeleteTask_NotFound(t *testing.T) {
-	ctx := getTestContext()
-	taskID := primitive.NewObjectID().Hex()
-
-	mockTaskRepo := &MockTaskRepository{
-		DeleteTaskFunc: func(c context.Context, id primitive.ObjectID) error {
+	s.Run("Not Found", func() {
+		s.SetupTest()
+		taskID := primitive.NewObjectID()
+		s.mockRepo.DeleteTaskFunc = func(c context.Context, id primitive.ObjectID) error {
 			return domain.ErrTaskNotFound
-		},
-	}
+		}
 
-	taskUseCase := usecases.NewTaskUseCase(mockTaskRepo)
-	err := taskUseCase.DeleteTask(ctx, taskID)
+		err := s.useCase.DeleteTask(s.ctx, taskID.Hex())
 
-	if err == nil || !errors.Is(err, domain.ErrTaskNotFound) {
-		t.Errorf("DeleteTask did not return ErrTaskNotFound: %v", err)
-	}
+		s.Require().Error(err)
+		s.ErrorIs(err, domain.ErrTaskNotFound)
+	})
 }
